@@ -39,3 +39,9 @@ Before publishing, mount the DMG and check that it contains Plupo, the Applicati
 ## Dependency updates
 
 Dependabot checks GitHub Actions and the DMG packaging requirements monthly, on the first day of the month at 10:00 Europe/Moscow. Updates are grouped into one pull request per ecosystem, with at most one open version-update pull request for each. No automatic merging is configured. Review updates before merging; use a manual workflow run to check packaging when needed. Dependabot pull requests and ordinary commits do not trigger the app build or publish a release.
+
+## Swift security analysis
+
+The **Monthly Swift security scan** workflow runs CodeQL's extended security queries against the Swift application on the first day of each month at 11:17 Europe/Moscow. It can also be started manually from Actions. Pushes, pull requests, and release tags do not trigger this scan.
+
+CodeQL builds the app on a GitHub-hosted Apple Silicon Mac with Xcode 26.3, without signing. This build is only for analysis: it does not package a DMG or publish a release. Findings appear under **Security → Code scanning**. Dependabot maintains the pinned CodeQL action along with the other GitHub Actions.
