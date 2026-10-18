@@ -51,8 +51,8 @@ for scale in [1, 2] {
     centered("First launch blocked? See the instructions in the release notes.",
              top: 414, size: 11, weight: .regular, color: muted)
     NSGraphicsContext.restoreGraphicsState()
+    rep.setCompression(.lzw, factor: 1)
     image.addRepresentation(rep)
 }
 let output = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "scripts/dmg/background.tiff"
-let data = NSBitmapImageRep.tiffRepresentation(of: image.representations as! [NSBitmapImageRep], using: .lzw, factor: 1)!
-try data.write(to: URL(fileURLWithPath: output))
+try image.tiffRepresentation!.write(to: URL(fileURLWithPath: output))
