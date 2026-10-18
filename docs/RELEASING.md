@@ -13,6 +13,8 @@ git push origin v0.1.1
 
 Use a new `vMAJOR.MINOR.PATCH` tag for each release. Tag only reviewed, committed code; local uncommitted changes are not included. Existing release assets are not silently replaced on a rerun.
 
+DMG packaging uses pinned Python tools (`dmgbuild`, `ds-store`, and `mac-alias`) in an isolated environment. These tools are not shipped with the app. The Finder background, icon positions, and window size are defined in `scripts/dmg/`. To regenerate the Retina background after editing its source, run `swift scripts/dmg/render-background.swift`. The app and Applications shortcut are the two visible items; the license and first-launch text remain on the disk as hidden support files.
+
 The workflow uses GitHub-hosted Apple Silicon runners with Xcode 26.3, builds in Release mode, verifies ARM64 output and the ad-hoc signature, and verifies the disk image. The release job alone has permission to write repository contents. No Apple ID, Developer ID certificate, notarization credentials, or custom repository secrets are needed.
 
 Ad-hoc signing is a local integrity signature, not verification of the publisher by Apple. Keep the first-launch notice in the README, release notes, and DMG until Developer ID signing and notarization are added.

@@ -56,8 +56,15 @@ https://github.com/planetic-labs/open-drag-shelf
 Released under the MIT License; see LICENSE.txt.
 NOTES
 
-hdiutil create -volname Plupo -srcfolder "$staging_dir" \
-  -format UDZO -ov "$output_dir/Plupo-arm64.dmg"
+# A dedicated environment keeps packaging dependencies out of the app.
+packaging_dir="$PWD/build/dmg-tools"
+if [[ ! -x "$packaging_dir/bin/python" ]]; then
+  python3 -m venv "$packaging_dir"
+fi
+"$packaging_dir/bin/python" -m pip install --disable-pip-version-check \
+  -r scripts/dmg/requirements.txt
+"$packaging_dir/bin/python" -m dmgbuild -s scripts/dmg/settings.py \
+  -D "staging=$staging_dir" Plupo "$output_dir/Plupo-arm64.dmg"
 hdiutil verify "$output_dir/Plupo-arm64.dmg"
 (cd "$output_dir" && shasum -a 256 Plupo-arm64.dmg > SHA256SUMS.txt)
 echo "Created $output_dir/Plupo-arm64.dmg"
