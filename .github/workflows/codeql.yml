@@ -16,7 +16,9 @@ concurrency:
 jobs:
   analyze:
     name: Analyze Swift with CodeQL
-    runs-on: macos-26
+    # CodeQL currently uses Rosetta on Apple Silicon. Analyze on Intel,
+    # while cross-compiling the same ARM64 application sources.
+    runs-on: macos-15-intel
     timeout-minutes: 45
     permissions:
       contents: read

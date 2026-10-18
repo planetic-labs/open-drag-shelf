@@ -44,4 +44,4 @@ Dependabot checks GitHub Actions and the DMG packaging requirements monthly, on 
 
 The **Monthly Swift security scan** workflow runs CodeQL's extended security queries against the Swift application on the first day of each month at 11:17 Europe/Moscow. It can also be started manually from Actions. Pushes, pull requests, and release tags do not trigger this scan.
 
-CodeQL builds the app on a GitHub-hosted Apple Silicon Mac with Xcode 26.3, without signing. This build is only for analysis: it does not package a DMG or publish a release. Findings appear under **Security → Code scanning**. Dependabot maintains the pinned CodeQL action along with the other GitHub Actions.
+CodeQL runs on a GitHub-hosted Intel Mac with Xcode 26.3 to avoid Rosetta overhead in the analyzer, while explicitly cross-compiling the application for ARM64 without signing. Release packaging continues to run on Apple Silicon. This build is only for analysis: it does not package a DMG or publish a release. Findings appear under **Security → Code scanning**. Dependabot maintains the pinned CodeQL action along with the other GitHub Actions.
