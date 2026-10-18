@@ -39,7 +39,7 @@ jobs:
       - name: Build for analysis
         run: |
           xcodebuild -project Plupo.xcodeproj -scheme Plupo \
-            -configuration Debug -destination 'platform=macOS,arch=arm64' \
+            -configuration Debug -destination 'generic/platform=macOS' \
             -derivedDataPath "$RUNNER_TEMP/PlupoCodeQL" \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO \
             clean build
