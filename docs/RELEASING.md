@@ -1,6 +1,8 @@
 # Releasing Plupo
 
-GitHub Actions builds an Apple Silicon DMG for pushes to `main`, pull requests, and manual runs. These builds are retained as workflow artifacts for seven days; they are not public releases.
+GitHub Actions builds an Apple Silicon DMG only when a version tag is pushed or the workflow is started manually. Ordinary branch pushes and pull requests do not trigger builds.
+
+For a manual build, open **Actions → Build and release Plupo → Run workflow**. Manual builds are retained as workflow artifacts for seven days and do not publish a release.
 
 Pushing a version tag such as `v0.1.1` builds and publishes a GitHub Release with `Plupo-arm64.dmg` and `SHA256SUMS.txt`:
 
