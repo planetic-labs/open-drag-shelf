@@ -9,7 +9,7 @@ import SwiftUI
 import AppKit
 import Combine
 
-class WindowManager: NSObject, ObservableObject {
+class WindowManager: NSObject {
     static let shared = WindowManager()
     
     let shelfViewModel = ShelfViewModel()
@@ -20,6 +20,11 @@ class WindowManager: NSObject, ObservableObject {
     private let windowWidth: CGFloat = 150
     private let windowHeight: CGFloat = 420
     private var isAnimating = false
+    private var needsUpdate = false
+    private var visibility = ShelfVisibilityState()
+    private var subscriptions = Set<AnyCancellable>()
+    private var autoHideTask: DispatchWorkItem?
+    private var hideGeneration = 0
     
     private override init() {
         super.init()
@@ -27,74 +32,82 @@ class WindowManager: NSObject, ObservableObject {
     }
     
     private func setupPreferencesObserver() {
-        // Observe preference changes to update window position dynamically
-        NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.updateShelfPosition(animated: true)
+        shelfViewModel.onItemsChanged = { [weak self] in self?.scheduleAutoHide() }
+        shelfViewModel.onDropStarted = { [weak self] in self?.cancelAutoHide() }
+        shelfViewModel.onDropFinished = { [weak self] in
+            guard let self else { return }
+            if !self.shelfViewModel.items.isEmpty || self.shelfViewModel.dropError != nil {
+                self.showShelfWindow()
+            }
         }
+        PreferencesStore.shared.$showBehavior.removeDuplicates().sink { [weak self] mode in
+            guard let self else { return }
+            self.cancelAutoHide()
+            self.refreshVisibilityInputs()
+            self.visibility.apply(mode: mode)
+            self.updateShelfPosition()
+        }.store(in: &subscriptions)
+        PreferencesStore.shared.$position.combineLatest(PreferencesStore.shared.$alignment)
+            .dropFirst().sink { [weak self] _ in
+                // Published emits before the new value has been stored.
+                DispatchQueue.main.async { self?.updateShelfPosition() }
+            }.store(in: &subscriptions)
     }
-    
-    func isMouseInsideShelf(at point: NSPoint) -> Bool {
-        guard let panel = shelfPanel else { return false }
-        return NSMouseInRect(point, panel.frame, false)
+
+    private func refreshVisibilityInputs() {
+        visibility.itemCount = shelfViewModel.items.count
+        visibility.isLoadingDrop = shelfViewModel.isLoadingDrop
+        visibility.hasDropError = shelfViewModel.dropError != nil
     }
-    
-    private var isShelfVisible = false
-    
+
+    private func cancelAutoHide() {
+        hideGeneration += 1
+        autoHideTask?.cancel()
+        autoHideTask = nil
+    }
+
+    private func scheduleAutoHide() {
+        cancelAutoHide()
+        refreshVisibilityInputs()
+        guard visibility.canAutoHide else { return }
+        let generation = hideGeneration
+        let task = DispatchWorkItem { [weak self] in
+            guard let self, generation == self.hideGeneration else { return }
+            self.refreshVisibilityInputs()
+            guard self.visibility.canAutoHide else { return }
+            self.hideShelfWindow()
+        }
+        autoHideTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: task)
+    }
+
+    func dragDidBegin(source: String = "monitor") {
+        cancelAutoHide()
+        visibility.dragSources.insert(source)
+        if visibility.mode == .dragStarts { showShelfWindow() }
+    }
+
+    func dragDidEnd(source: String = "monitor") {
+        visibility.dragSources.remove(source)
+        scheduleAutoHide()
+    }
+
     func showShelfWindow() {
-        if shelfPanel == nil {
-            createShelfPanel()
-        }
-        
-        guard let panel = shelfPanel, !isShelfVisible else {
-            updateShelfPosition(animated: true)
-            return
-        }
-        
-        isShelfVisible = true
-        let screen = getActiveScreen()
-        let targetFrame = getTargetFrame(for: screen, isVisibleState: true)
-        
-        isAnimating = true
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().setFrame(targetFrame, display: true)
-            panel.animator().alphaValue = 1.0
-        }, completionHandler: {
-            self.isAnimating = false
-        })
+        cancelAutoHide()
+        visibility.desiredVisible = true
+        updateShelfPosition()
     }
-    
+
     func hideShelfWindow() {
-        guard let panel = shelfPanel, isShelfVisible, !isAnimating else { return }
-        
-        isShelfVisible = false
-        let screen = getActiveScreen()
-        let hiddenFrame = getTargetFrame(for: screen, isVisibleState: false)
-        
-        isAnimating = true
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            panel.animator().setFrame(hiddenFrame, display: true)
-            panel.animator().alphaValue = 0.0
-        }, completionHandler: {
-            self.isAnimating = false
-        })
+        cancelAutoHide()
+        visibility.desiredVisible = false
+        updateShelfPosition()
     }
-    
+
     func toggleShelfWindow() {
-        if isShelfVisible {
-            hideShelfWindow()
-        } else {
-            showShelfWindow()
-        }
+        visibility.desiredVisible ? hideShelfWindow() : showShelfWindow()
     }
-    
+
     private func createShelfPanel() {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
@@ -128,22 +141,29 @@ class WindowManager: NSObject, ObservableObject {
         panel.orderFrontRegardless()
     }
     
-    private func updateShelfPosition(animated: Bool) {
-        guard let panel = shelfPanel, !isAnimating else { return }
-        
-        let screen = getActiveScreen()
-        let targetFrame = getTargetFrame(for: screen, isVisibleState: isShelfVisible)
-        
-        if animated {
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.2
-                panel.animator().setFrame(targetFrame, display: true)
-            })
-        } else {
-            panel.setFrame(targetFrame, display: true)
+    private func updateShelfPosition() {
+        if isAnimating {
+            needsUpdate = true
+            return
         }
+        if visibility.desiredVisible && shelfPanel == nil { createShelfPanel() }
+        guard let panel = shelfPanel else { return }
+        let target = getTargetFrame(for: getActiveScreen(), isVisibleState: visibility.desiredVisible)
+        let alpha: CGFloat = visibility.desiredVisible ? 1 : 0
+        guard panel.frame != target || panel.alphaValue != alpha else { return }
+        isAnimating = true
+        needsUpdate = false
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.25
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(target, display: true)
+            panel.animator().alphaValue = alpha
+        }, completionHandler: {
+            self.isAnimating = false
+            if self.needsUpdate { self.updateShelfPosition() }
+        })
     }
-    
+
     // Calculates the window frame based on active screen and settings
     private func getTargetFrame(for screen: NSScreen, isVisibleState: Bool) -> NSRect {
         let prefs = PreferencesStore.shared

@@ -30,13 +30,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup Menu Bar Icon
         setupStatusItem()
         
-        // If configured to be always visible, show the window right away
-        if PreferencesStore.shared.showBehavior == .always {
-            WindowManager.shared.showShelfWindow()
-        }
+        // Initialize visibility subscriptions, including the saved mode.
+        _ = WindowManager.shared
     }
     
     func applicationWillTerminate(_ notification: Notification) {
+        DragDetector.shared.stopMonitoring()
         PlupoTemporaryFiles.cleanup()
     }
 
@@ -53,6 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit Plupo", action: #selector(quitApp), keyEquivalent: "q"))
         
+        for item in menu.items where !item.isSeparatorItem { item.target = self }
         statusItem?.menu = menu
     }
     

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import ServiceManagement
 
 struct PreferencesView: View {
     @EnvironmentObject var prefs: PreferencesStore
@@ -65,7 +66,7 @@ struct PreferencesView: View {
                                     .frame(width: 110, alignment: .leading)
                                 Picker("", selection: $prefs.showBehavior) {
                                     ForEach(ShowBehavior.allCases, id: \.self) { behavior in
-                                        Text(behavior.rawValue).tag(behavior)
+                                        Text(behavior.title).tag(behavior)
                                     }
                                 }
                                 .pickerStyle(.menu)
@@ -104,9 +105,18 @@ struct PreferencesView: View {
                     // Section 3: General System
                     GroupBox(label: Text("System").font(.system(size: 11, weight: .bold))) {
                         VStack(alignment: .leading, spacing: 10) {
-                            Toggle("Launch Plupo at login", isOn: $prefs.launchAtLogin)
+                            Toggle("Launch Plupo at login", isOn: Binding(get: { prefs.launchAtLogin }, set: { prefs.setLaunchAtLogin($0) }))
                                 .font(.system(size: 11))
                             
+                            if prefs.loginRequiresApproval {
+                                Button("Allow in System Settings…") {
+                                    SMAppService.openSystemSettingsLoginItems()
+                                }
+                            }
+                            if let error = prefs.loginError {
+                                Text(error).font(.caption).foregroundStyle(.red)
+                            }
+
                             Text("Starts the app automatically when you log into your Mac so it's always ready.")
                                 .font(.system(size: 10))
                                 .foregroundColor(.secondary)
@@ -134,6 +144,10 @@ struct PreferencesView: View {
             .padding(16)
         }
         .frame(width: 450, height: 460)
+        .onAppear { prefs.refreshLoginStatus() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            prefs.refreshLoginStatus()
+        }
     }
 }
 

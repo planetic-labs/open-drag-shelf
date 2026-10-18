@@ -55,46 +55,27 @@ struct ShelfItemView: View {
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(alignment: .leading) {
+            NativeDragSource(item: item, viewModel: viewModel, preview: showQuickLook)
+                // Keep native dragging away from the hover action buttons.
+                .padding(.trailing, isHovering ? 66 : 0)
+        }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovering = hovering
             }
         }
-        .contextMenu {
-            Button(action: { item.isLocked ? () : viewModel.toggleLock(for: item) }) {
-                Text(item.isLocked ? "Unlock Item" : "Lock Item")
-            }
-            Button(action: { showQuickLook() }) {
-                Text("Quick Look")
-            }
-            Divider()
-            Button(action: { viewModel.removeItem(item) }) {
-                Text("Remove")
-            }
-        }
-        .onTapGesture(count: 2) {
-            showQuickLook()
-        }
-        .onDrag {
-            viewModel.currentlyDraggingItem = item
-            return item.getItemProvider()
-        }
+
     }
     
     // Custom Thumbnail View
     @ViewBuilder
     private var thumbnailView: some View {
-        if item.type == .image, let data = item.imageData, let nsImage = NSImage(data: data) {
-            Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-        } else {
-            Image(nsImage: item.icon)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .padding(4)
-                .background(Color.primary.opacity(0.04))
-        }
+        Image(nsImage: item.thumbnail)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .padding(4)
+            .background(Color.primary.opacity(0.04))
     }
     
     // Action Buttons
@@ -140,20 +121,9 @@ struct ShelfItemView: View {
     
     // Quick Look implementation
     private func showQuickLook() {
-        if item.type == .file, let fileURL = item.fileURL {
-            NSWorkspace.shared.open(fileURL) // Or integrate QLPreviewPanel if needed
-        } else if item.type == .url, let url = item.url {
-            NSWorkspace.shared.open(url)
-        } else {
-            // For text/image, show alert or preview
-            let alert = NSAlert()
-            alert.messageText = item.title
-            alert.informativeText = item.text ?? item.subtitle
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
+        PreviewController.shared.show(item)
     }
-    
+
     // Size settings based on Preferences
     private var cardHeight: CGFloat {
         switch prefs.iconSize {

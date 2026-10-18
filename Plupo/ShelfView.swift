@@ -62,6 +62,18 @@ struct ShelfView: View {
                 Divider()
                     .background(Color.primary.opacity(0.1))
                 
+                if let error = viewModel.dropError {
+                    HStack(alignment: .top) {
+                        Text(error).font(.caption2).foregroundStyle(.secondary)
+                        Button { viewModel.dismissDropError() } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                        .help("Dismiss message")
+                    }
+                    .padding(8)
+                }
+
                 // Footer (Action Controls)
                 footerView
                     .padding(.horizontal, 10)
@@ -76,8 +88,7 @@ struct ShelfView: View {
         )
         // Set up drop destination
         .onDrop(of: [.item, .fileURL, .url, .plainText], isTargeted: $isTargeted) { providers in
-            viewModel.handleDroppedProviders(providers)
-            return true
+            return viewModel.handleDroppedProviders(providers)
         }
     }
     

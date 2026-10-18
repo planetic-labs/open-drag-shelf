@@ -1,132 +1,127 @@
-//
-//  ShelfViewModel.swift
-//  Plupo
-//
-//  Created by Antigravity on 06.06.2026.
-//
-
-import Foundation
-import SwiftUI
 import AppKit
 import Combine
 import UniformTypeIdentifiers
 
 class ShelfViewModel: ObservableObject {
-    @Published var items: [ShelfItem] = []
-    var currentlyDraggingItem: ShelfItem? = nil
-    
-    // Toggle locking state of an item
+    @Published private(set) var items: [ShelfItem] = []
+    @Published private(set) var dropError: String?
+    private var pendingDrops = 0
+    var onItemsChanged: (() -> Void)?
+    var onDropStarted: (() -> Void)?
+    var onDropFinished: (() -> Void)?
+
+    var isLoadingDrop: Bool { pendingDrops > 0 }
+
     func toggleLock(for item: ShelfItem) {
         if let index = items.firstIndex(where: { $0.id == item.id }) {
             items[index].isLocked.toggle()
         }
     }
-    
-    // Remove specific item
+
     func removeItem(_ item: ShelfItem) {
-        items.removeAll(where: { $0.id == item.id })
-        
-        // If shelf becomes empty and showBehavior is dragStarts, auto-hide the window
-        if items.isEmpty && PreferencesStore.shared.showBehavior == .dragStarts {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                if self.items.isEmpty {
-                    WindowManager.shared.hideShelfWindow()
-                }
-            }
-        }
+        items.removeAll { $0.id == item.id }
+        onItemsChanged?()
     }
-    
-    // Remove all items (except locked ones)
+
+    func dismissDropError() {
+        dropError = nil
+        onItemsChanged?()
+    }
+
     func clearAll() {
-        items.removeAll(where: { !$0.isLocked })
-        
-        if items.isEmpty && PreferencesStore.shared.showBehavior == .dragStarts {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                if self.items.isEmpty {
-                    WindowManager.shared.hideShelfWindow()
+        items.removeAll { !$0.isLocked }
+        onItemsChanged?()
+    }
+
+    func finishDrag(itemID: UUID, operation: NSDragOperation, keepItems: Bool) {
+        guard !operation.isEmpty, !keepItems,
+              let item = items.first(where: { $0.id == itemID }), !item.isLocked else { return }
+        removeItem(item)
+    }
+
+    static func supportedTypes(for provider: NSItemProvider) -> [String] {
+        let identifiers = provider.registeredTypeIdentifiers
+        // Prefer original file references over image/text representations of the same file.
+        let priorities: [UTType] = [.fileURL, .url, .image, .plainText]
+        var result: [String] = []
+        for priority in priorities {
+            for identifier in identifiers where UTType(identifier)?.conforms(to: priority) == true {
+                if !result.contains(identifier) { result.append(identifier) }
+            }
+        }
+        if identifiers.contains(UTType.text.identifier) { result.append(UTType.text.identifier) }
+        return result
+    }
+
+    @discardableResult
+    func handleDroppedProviders(_ providers: [NSItemProvider]) -> Bool {
+        let candidates = providers.filter { !Self.supportedTypes(for: $0).isEmpty }
+        guard !candidates.isEmpty else { return false }
+        dropError = nil
+        pendingDrops += 1
+        onDropStarted?()
+        let group = DispatchGroup()
+        var results: [Int: ShelfItem] = [:]
+        for (index, provider) in candidates.enumerated() {
+            group.enter()
+            load(provider, types: Self.supportedTypes(for: provider)) { item in
+                if let item { results[index] = item }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) {
+            self.items.append(contentsOf: results.keys.sorted().compactMap { results[$0] })
+            self.pendingDrops -= 1
+            if results.count < providers.count {
+                self.dropError = "Some items could not be added. Try dragging the original file or plain text."
+            }
+            self.onDropFinished?()
+            self.onItemsChanged?()
+        }
+        return true
+    }
+
+    private func load(_ provider: NSItemProvider, types: [String], completion: @escaping (ShelfItem?) -> Void) {
+        guard let type = types.first else { completion(nil); return }
+        provider.loadDataRepresentation(forTypeIdentifier: type) { value, error in
+            DispatchQueue.main.async {
+                if error == nil, let content = Self.decode(value as NSData?, type: type, name: provider.suggestedName) {
+                    completion(ShelfItem(content: content))
+                } else {
+                    self.load(provider, types: Array(types.dropFirst()), completion: completion)
                 }
             }
         }
     }
-    
-    // Handle drop of NSItemProviders (from Drag & Drop)
-    func handleDroppedProviders(_ providers: [NSItemProvider]) {
-        
-        let group = DispatchGroup()
-        var newItems: [ShelfItem] = []
-        
-        for provider in providers {
-            group.enter()
-            
-            let types = provider.registeredTypeIdentifiers
-            
-            guard let preferredType = types.first else {
-                group.leave()
-                continue
-            }
-            
-            provider.loadItem(forTypeIdentifier: preferredType, options: nil) { (item, error) in
-                DispatchQueue.main.async {
-                    defer { group.leave() }
-                    
-                    if error != nil {
-                        return
-                    }
-                    
-                    guard let item = item else {
-                        return
-                    }
-                    
-                    
-                    // 1. Check if the item is a URL (local file URL or web link)
-                    if let url = item as? URL {
-                        if url.isFileURL {
-                            newItems.append(ShelfItem(id: UUID(), type: .file, fileURL: url))
-                        } else {
-                            newItems.append(ShelfItem(id: UUID(), type: .url, url: url, urlTitle: provider.suggestedName))
-                        }
-                    }
-                    else if let nsURL = item as? NSURL {
-                        let url = nsURL as URL
-                        if url.isFileURL {
-                            newItems.append(ShelfItem(id: UUID(), type: .file, fileURL: url))
-                        } else {
-                            newItems.append(ShelfItem(id: UUID(), type: .url, url: url, urlTitle: provider.suggestedName))
-                        }
-                    }
-                    // 2. Check if the item is Data (image or file data)
-                    else if let data = item as? Data {
-                        if let utType = UTType(preferredType), utType.conforms(to: .image) {
-                            newItems.append(ShelfItem(
-                                id: UUID(),
-                                type: .image,
-                                imageData: data,
-                                imageName: provider.suggestedName ?? "Image.png"
-                            ))
-                        }
-                        else if let url = URL(dataRepresentation: data, relativeTo: nil), url.isFileURL {
-                            newItems.append(ShelfItem(id: UUID(), type: .file, fileURL: url))
-                        }
-                    }
-                    // 3. Check if the item is String
-                    else if let nsString = item as? NSString {
-                        let textString = nsString as String
-                        
-                        if let url = URL(string: textString), url.scheme != nil {
-                            newItems.append(ShelfItem(id: UUID(), type: .url, url: url, urlTitle: textString))
-                        } else {
-                            newItems.append(ShelfItem(id: UUID(), type: .text, text: textString))
-                        }
-                    }
-                }
+
+    static func decode(_ value: NSSecureCoding?, type identifier: String, name: String?) -> ShelfItem.Content? {
+        guard let type = UTType(identifier) else { return nil }
+        if type.conforms(to: .fileURL) || type.conforms(to: .url) {
+            let url: URL?
+            if let value = value as? URL { url = value }
+            else if let data = value as? Data { url = URL(dataRepresentation: data, relativeTo: nil) }
+            else if let string = value as? String { url = URL(string: string) }
+            else { url = nil }
+            guard let url, url.scheme != nil else { return nil }
+            if type.conforms(to: .fileURL), !url.isFileURL { return nil }
+            return url.isFileURL ? .file(url) : .link(url, title: name)
+        }
+        if type.conforms(to: .image) {
+            let data = (value as? Data) ?? (value as? NSImage)?.tiffRepresentation
+            guard let data, NSImage(data: data) != nil else { return nil }
+            let ext = (value is NSImage ? "tiff" : type.preferredFilenameExtension) ?? "png"
+            let original = name.map { ($0 as NSString).lastPathComponent }
+            let fileName = original.flatMap { $0.isEmpty ? nil : $0 } ?? "Image.\(ext)"
+            let finalName = (fileName as NSString).pathExtension.isEmpty ? fileName + "." + ext : fileName
+            return .image(data, name: finalName)
+        }
+        if type.conforms(to: .plainText) || type == .text {
+            if let text = value as? String { return .text(text) }
+            if let data = value as? Data {
+                let encoding: String.Encoding = identifier.contains("utf16") ? .utf16 : .utf8
+                if let text = String(data: data, encoding: encoding) { return .text(text) }
             }
         }
-        
-        group.notify(queue: .main) {
-            if !newItems.isEmpty {
-                self.items.append(contentsOf: newItems)
-                WindowManager.shared.showShelfWindow()
-            }
-        }
+        return nil
     }
 }

@@ -18,6 +18,7 @@ class DragDetector {
     
     private var lastDragChangeCount: Int = -1
     private var isDraggingActive = false
+    private var dragExpiry: DispatchWorkItem?
     
     private init() {}
     
@@ -48,6 +49,7 @@ class DragDetector {
     }
     
     func stopMonitoring() {
+        handleMouseUp()
         if let monitor = globalMouseDragMonitor {
             NSEvent.removeMonitor(monitor)
             globalMouseDragMonitor = nil
@@ -67,56 +69,39 @@ class DragDetector {
     }
     
     private func checkDragPasteboard() {
-        // Get the drag pasteboard
-        let dragPasteboard = NSPasteboard(name: .drag)
-        let currentChangeCount = dragPasteboard.changeCount
-        
-        // If the change count has changed, and there are items on the drag pasteboard,
-        // it means a drag operation has officially started in the OS.
-        if currentChangeCount != lastDragChangeCount {
-            lastDragChangeCount = currentChangeCount
-            
-            if let items = dragPasteboard.pasteboardItems, !items.isEmpty {
+        let pasteboard = NSPasteboard(name: .drag)
+        guard pasteboard.pasteboardItems?.isEmpty == false else { return }
+        let changed = pasteboard.changeCount != lastDragChangeCount
+        if changed || isDraggingActive {
+            lastDragChangeCount = pasteboard.changeCount
+            if !isDraggingActive {
                 isDraggingActive = true
-                
-                // Only trigger if showBehavior is set to dragStarts
-                if PreferencesStore.shared.showBehavior == .dragStarts {
-                    DispatchQueue.main.async {
-                        WindowManager.shared.showShelfWindow()
-                    }
-                }
+                WindowManager.shared.dragDidBegin()
             }
+            // Escape may cancel a drag without generating mouseUp.
+            dragExpiry?.cancel()
+            watchMouseRelease()
         }
     }
     
+    private func watchMouseRelease() {
+        let expiry = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if NSEvent.pressedMouseButtons & 1 == 0 {
+                self.handleMouseUp()
+            } else if self.isDraggingActive {
+                self.watchMouseRelease()
+            }
+        }
+        dragExpiry = expiry
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: expiry)
+    }
+
     private func handleMouseUp() {
-        if isDraggingActive {
-            isDraggingActive = false
-            
-            // If dragging ended and the shelf is empty, hide it (with a slight delay)
-            if PreferencesStore.shared.showBehavior == .dragStarts {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    // Check if shelf is empty, if so, hide it
-                    if WindowManager.shared.shelfViewModel.items.isEmpty {
-                        WindowManager.shared.hideShelfWindow()
-                    }
-                }
-            }
-        }
-        
-        // Handle drag-out detection for Plupo items
-        if let draggedItem = WindowManager.shared.shelfViewModel.currentlyDraggingItem {
-            WindowManager.shared.shelfViewModel.currentlyDraggingItem = nil
-            
-            let mouseLocation = NSEvent.mouseLocation
-            // Check if the drop location is outside the Plupo shelf panel frame
-            if !WindowManager.shared.isMouseInsideShelf(at: mouseLocation) {
-                DispatchQueue.main.async {
-                    if !draggedItem.isLocked && !PreferencesStore.shared.keepItemsAfterDrag {
-                        WindowManager.shared.shelfViewModel.removeItem(draggedItem)
-                    }
-                }
-            }
-        }
+        dragExpiry?.cancel()
+        dragExpiry = nil
+        guard isDraggingActive else { return }
+        isDraggingActive = false
+        WindowManager.shared.dragDidEnd()
     }
 }
