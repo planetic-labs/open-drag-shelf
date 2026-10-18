@@ -18,6 +18,20 @@ enum PlupoTemporaryFiles {
         } catch { return nil }
     }
 
+    static func copyImport(_ source: URL) -> URL? {
+        let folder = directory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let destination = folder.appendingPathComponent(source.lastPathComponent)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            try FileManager.default.copyItem(at: source, to: destination)
+            return destination
+        } catch {
+            try? FileManager.default.removeItem(at: folder)
+            return nil
+        }
+    }
+
     static func cleanup() {
         try? FileManager.default.removeItem(at: directory)
     }

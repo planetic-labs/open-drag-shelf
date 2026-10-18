@@ -50,6 +50,12 @@ class ShelfViewModel: ObservableObject {
             }
         }
         if identifiers.contains(UTType.text.identifier) { result.append(UTType.text.identifier) }
+        // Finder may advertise the file's content type without public.file-url.
+        for identifier in identifiers {
+            guard let type = UTType(identifier), type.conforms(to: .item),
+                  !type.conforms(to: .text), !result.contains(identifier) else { continue }
+            result.append(identifier)
+        }
         return result
     }
 
@@ -83,6 +89,24 @@ class ShelfViewModel: ObservableObject {
 
     private func load(_ provider: NSItemProvider, types: [String], completion: @escaping (ShelfItem?) -> Void) {
         guard let type = types.first else { completion(nil); return }
+        let contentType = UTType(type)
+        if let contentType, !contentType.conforms(to: .url),
+           !contentType.conforms(to: .image), !contentType.conforms(to: .text) {
+            provider.loadInPlaceFileRepresentation(forTypeIdentifier: type) { url, inPlace, error in
+                // Non-in-place URLs expire when this callback returns. Copy before leaving it.
+                let retainedURL = error == nil ? url.flatMap {
+                    inPlace ? $0 : PlupoTemporaryFiles.copyImport($0)
+                } : nil
+                DispatchQueue.main.async {
+                    if let retainedURL {
+                        completion(ShelfItem(content: .file(retainedURL)))
+                    } else {
+                        self.load(provider, types: Array(types.dropFirst()), completion: completion)
+                    }
+                }
+            }
+            return
+        }
         provider.loadDataRepresentation(forTypeIdentifier: type) { value, error in
             DispatchQueue.main.async {
                 if error == nil, let content = Self.decode(value as NSData?, type: type, name: provider.suggestedName) {

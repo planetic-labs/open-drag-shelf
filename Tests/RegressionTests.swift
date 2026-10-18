@@ -70,6 +70,36 @@ struct RegressionTests {
         let acceptedFallback = await load(model, [fallback])
         expect(acceptedFallback && text(model.items.last!) == "fallback", "A failed preferred representation must try the next supported type")
 
+        let archiveURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("archive-test-" + UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("курсар.tar.gz")
+        try FileManager.default.createDirectory(at: archiveURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let archiveBytes = Data([0x1f, 0x8b, 0x08, 0x00])
+        try archiveBytes.write(to: archiveURL)
+        defer { try? FileManager.default.removeItem(at: archiveURL.deletingLastPathComponent()) }
+        for inPlace in [true, false] {
+            let archive = NSItemProvider()
+            archive.registerFileRepresentation(forTypeIdentifier: UTType.gzip.identifier,
+                                               fileOptions: inPlace ? .openInPlace : [], visibility: .all) { done in
+                done(archiveURL, inPlace, nil)
+                return nil
+            }
+            let archiveModel = ShelfViewModel()
+            let acceptedArchive = await load(archiveModel, [archive])
+            expect(acceptedArchive && archiveModel.items.count == 1 && archiveModel.dropError == nil,
+                   "Archives without a file-URL representation must appear on the shelf")
+            guard case .file(let loadedURL) = archiveModel.items[0].content else {
+                fatalError("Archive must remain a file")
+            }
+            expect(loadedURL.lastPathComponent == "курсар.tar.gz", "Compound extensions and Unicode filenames must survive")
+            let loadedBytes = try Data(contentsOf: loadedURL)
+            expect(loadedBytes == archiveBytes, "Imported archive bytes must remain unchanged")
+            if !inPlace {
+                expect(loadedURL != archiveURL, "Temporary provider files must be retained before their URL expires")
+                try? FileManager.default.removeItem(at: loadedURL.deletingLastPathComponent())
+            }
+        }
+
         let item = model.items[0]
         model.finishDrag(itemID: item.id, operation: [], keepItems: false)
         expect(model.items.count == 2, "Rejected/cancelled drags must keep shelf content")
