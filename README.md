@@ -2,7 +2,9 @@
 
 *Drag. Drop. Keep moving.*
 
-Plupo is a free macOS drag-and-drop shelf, developed in the open for Apple Silicon. It gives files a temporary home while you work: drag items into the shelf, switch between apps, and drop them wherever you need them.
+<img src="docs/assets/plupo-icon.png" alt="Plupo app icon" width="96" height="96">
+
+Plupo is a free, open-source macOS drag-and-drop shelf for Apple Silicon. It gives files a temporary home while you work: drag items into the shelf, switch between apps, and drop them wherever you need them.
 
 No complicated workflows. Just drag, drop, and keep moving.
 
@@ -77,7 +79,7 @@ Use the item's lock button or enable **Keep items on shelf after dragging them o
 
 ## Why Plupo?
 
-Plupo aims to be a small, thoughtfully crafted native Mac utility: simple interactions, minimal interruptions, and a focused Apple Silicon experience. Its source is public, and the app is intended to be free and open source, subject to the licensing gap noted below.
+Plupo aims to be a small, thoughtfully crafted native Mac utility: simple interactions, minimal interruptions, and a focused Apple Silicon experience. It is free and open source under the MIT license.
 
 Plupo is independently developed as an alternative to utilities such as Yoink and Dropover. It is not affiliated with, sponsored by, or endorsed by their developers.
 
@@ -104,4 +106,4 @@ Bug reports, feature suggestions, pull requests, and general feedback are welcom
 
 ## License
 
-MIT is the intended license, but this repository does not yet contain a license file. Public source availability alone does not grant open-source permissions to reuse, modify, or redistribute the code. An MIT license should be added by the copyright holder before the project is treated as licensed open source.
+Plupo is released under the [MIT License](LICENSE).
