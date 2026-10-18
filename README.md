@@ -95,12 +95,15 @@ Plupo is independently developed as an alternative to utilities such as Yoink an
 
 Plupo is in early development. Features and behavior may change. It has not been validated for everyday use.
 
-Known limitations in the published source:
+Current behavior and limitations:
 
-- Drag-out removal checks whether the pointer is outside the shelf, rather than whether the destination accepted the drop. An unsuccessful drag can therefore remove an unlocked item from the shelf.
-- The **Launch Plupo at login** preference is stored but does not register a login item.
-- The action labeled **Quick Look** opens files and links in their associated applications; text and images use an alert rather than a full preview.
-- **Shortcut Only** does not register a system-wide keyboard shortcut. Use the menu bar to toggle the shelf.
+- Items are removed only after a destination accepts the drag. Cancelled or rejected drags keep the item; locked items and the keep-items preference preserve it.
+- Quick Look previews files, text, and images in a dedicated window. A link preview opens the browser only when you click **Open Link**.
+- Launch at login uses macOS Service Management. Registration and first-launch approval still need manual verification with an installed build, particularly for the ad-hoc-signed downloads.
+- **Manual (Menu Bar)** mode uses the menu bar to toggle the shelf; no system-wide keyboard shortcut is registered.
+- File size and thumbnail metadata are captured when an item is added and are not continuously refreshed.
+
+The current code passes 26 import, drag, and export regression checks plus 9 window and menu checks. These do not replace interactive testing across applications.
 
 ## Privacy
 
