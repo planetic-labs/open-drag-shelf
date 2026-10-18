@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: '10:00'
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: pip
+    directory: /scripts/dmg
+    schedule:
+      interval: monthly
+      time: '10:00'
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 1
+    groups:
+      dmg-packaging:
+        patterns: ['*']
+    commit-message:
+      prefix: build

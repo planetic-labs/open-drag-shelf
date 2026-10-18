@@ -35,3 +35,7 @@ git -c user.name='Plupo Contributors' \
 ```
 
 Before publishing, mount the DMG and check that it contains Plupo, the Applications shortcut, the license, and the installation instructions. A successful build does not replace interactive drag-and-drop QA on macOS.
+
+## Dependency updates
+
+Dependabot checks GitHub Actions and the DMG packaging requirements monthly, on the first day of the month at 10:00 Europe/Moscow. Updates are grouped into one pull request per ecosystem, with at most one open version-update pull request for each. No automatic merging is configured. Review updates before merging; use a manual workflow run to check packaging when needed. Dependabot pull requests and ordinary commits do not trigger the app build or publish a release.
