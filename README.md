@@ -39,7 +39,15 @@ The app uses macOS drag-and-drop integration and sandboxed, read-only access to 
 
 ## Installation
 
-There are currently no published GitHub Releases or downloadable app builds. Build from source to try Plupo.
+[**Download Plupo for Apple Silicon**](https://github.com/planetic-labs/open-drag-shelf/releases/latest)
+
+1. Download `Plupo-arm64.dmg` from the latest release.
+2. Open the DMG and drag **Plupo** into **Applications**.
+3. Eject the DMG and open Plupo from Applications.
+
+These early preview builds use an ad-hoc signature, without an Apple Developer ID certificate or Apple notarization. macOS may block the first launch. If you trust the download, try opening Plupo once, then choose **System Settings → Privacy & Security → Open Anyway** and confirm. See [Apple's first-launch guidance](https://support.apple.com/102445). Do not disable system-wide security protections.
+
+Release downloads include a SHA-256 checksum. The app is built on GitHub for ARM64 without an Apple account or personal signing certificate. You can also build from source below.
 
 ## Build from Source
 
